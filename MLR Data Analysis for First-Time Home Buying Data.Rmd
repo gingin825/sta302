@@ -1,0 +1,213 @@
+---
+title: "MLR Data Analysis for the First-Time Home Buying Data"
+author: "Yu-Chun Chien, 1005194380"
+date: "December 5, 2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+```
+
+## I. Data Wrangling
+
+### Sampling Data
+```{r, echo=FALSE}
+# read the csv file
+info_yc <- read.csv("real203.csv")
+# Setting seed so the data won't be different each time I run the code
+set.seed(1005194380)
+# Randomly select a sample of 150 cases out of the original data
+sample_yc <- info_yc[sample(192,150),]
+```
+The IDs of the sample selected:
+```{r, echo=FALSE}
+#report the IDs of the sample selected
+sample_yc$ID
+sort(sample_yc$ID)
+```
+
+```{r, echo=FALSE}
+# create a new variable name "lotsize", which is obtained by "lotwidth" * "lotlength"
+lotsize_yc <- sample_yc$lotwidth * sample_yc$lotlength
+# remove the two variables "lotwidth" and "lotlength"
+sample_yc <- subset(sample_yc, select = -c(lotwidth, lotlength))
+# add the new variable "lotsize" into the data frame
+sample_yc$lotsize <- c(lotsize_yc)
+```
+
+### Data Cleaning
+
+First, since there is too many "NA"s in the predictor "maxsqfoot", it will not provide too much information to the data. Thus, removing this variable will make further data analysis more efficient. 
+
+Next, when we fit a linear model for the data, the entries with "NA" will be automatically removed. Thus, to make our data more concise, remove any remaining data points that have "NA". By inspection, there are 8 data points with "NA", which are the ones with ID 79, 76, 61, 84, 89, 96, 109, 113. 
+```{r, echo=FALSE}
+# remove the predictor "maxsqfoot"
+sample_yc_1 <- subset(sample_yc, select = -c(maxsqfoot))
+# remove the remaining data points with NA
+sample_yc_2 <- na.omit(sample_yc_1)
+attach(sample_yc_2)
+```
+
+## II. Exploratory Data Analysis
+ 
+### Classification of Variables
+
+sale: discrete
+
+list: discrete
+
+bedroom: discrete
+
+bathroom: discrete
+
+parking: discrete
+
+taxes: continuous
+
+location: categorical
+
+lotsize: continuous
+
+### Pairwise Correlations and Scatterplot Matrix
+
+```{r, echo=FALSE}
+# plot the scatterplot matrix of quantitative variables
+pairs(sale~list+bedroom+bathroom+parking+taxes+lotsize,data=sample_yc,gap = 0.4, cex.labels=0.85)
+title(main="Scatterplot Matrix 4380", line = 1.3)
+cor_yc <- cbind(sale, list, bedroom, bathroom, parking, taxes, lotsize)
+# produce the pairwise correlation
+round(cor(cor_yc, use = "complete.obs"), 4)
+```
+
+Among all quantitative predictor for sale price, list price is the most highly correlated predictor while parking is the least correlated predictor. 
+Rank of correlation coefficient (from highest to lowest): list, taxes, bathroom, bedroom, lotsize, parking
+
+### Violation of Constant Variance
+
+```{r, echo=FALSE}
+lmod_yc <- (lm(sale~list))
+plot(lmod_yc, 3)
+title(main="Constant Variance Violation 1005194380", line=1.4)
+```
+Based on the scatterplot matrix, the predictor list would violate the assumption of constants variance. In fact, it is confirmed by the scale-location plot shown above. According to the plot, there is a linear trend between fitted values and the square root of standardized residuals, which indicates that the assumption of constance variance are violated.
+
+## III. Methods and Model
+
+### Additive Linear Model
+
+```{r, echo=FALSE, include=FALSE}
+# fit the additive linear model
+add_yc <- lm(sale~list+bedroom+bathroom+parking+taxes+location+lotsize)
+print(summary(add_yc), digits=4)
+```
+#### Estimated Regression Coefficients for the predictors:
+
+```{r, echo=FALSE}
+# creating the table of the coefficients and p-value for predictors
+options(digits=4)
+list_yc <- c(0.8324, "< 2e-16")
+bedroom_yc <- c(14450, "0.3209")
+bathroom_yc <- c(3452, "0.8097")
+parking_yc <- c(-9934, "0.3089")
+taxes_yc <- c(22.10, "2.29e-06")
+location_yc <-c(101200, "0.0207")
+lotsize_yc <- c(-0.6566, "0.8035")
+table_yc = rbind(list_yc, bedroom_yc, bathroom_yc, parking_yc, taxes_yc, location_yc, lotsize_yc )
+rownames(table_yc)=c("list","bedroom","bathroom", "parking", "taxes", "location", "lotsize")
+colnames(table_yc) = c("Coefficient", "p-value")
+table_yc
+```
+
+#### Interpretation of Estimated Model Coefficient:
+
+Using a benchmark significance level of 5%, three coefficients of the predictors are significant: list, taxes, and location.
+
+For the coefficient of list, $p < 2 \times 10^{-16}$, meaning that the probability that the coefficient is equal to zero is less than $2 \times 10^{-16}$, which is small. Thus, we can conclude that it is unlikely that the coefficient is equal to zero and that list price predicts sale price. With other predictors having the same value, when the list price increase for 1 unit, it is estimated that the sales price will increase 0.8324 unit on average. 
+
+For the coefficient of taxes, $p = 2.29 \times 10^{-6}$, which means that the probability that the coefficient is equal to zero is equal to $2.29 \times 10^{-6}$, which is small. This implies that it is unlikely that the coefficient is equal to zero and that taxes predicts sale price. With other predictors having the same value, when the taxes increase for 1 unit, it is estimated that the sales prices will increase 22.1 unit on average.
+
+For the coefficient of location, $p = 0.0207$, which means that the probability that the coefficient is equal to zero is equal to 0.0207, which is smaller than the benchmark $\alpha = 0.05$. Therefore, it is unlikely that the coefficient is equal to zero and that location predicts sale price. With other predictors having the same value, the sales price in Toronto is on average 101200 units more than the sale price in Mississauga.
+
+### Backward AIC
+
+```{r, echo=FALSE, include=FALSE}
+# backward AIC
+aic_yc <- step(add_yc, direction = "backward")
+summary(aic_yc, digits = 4)
+```
+The final model obtained by using backward elimination with AIC:
+
+$Y$ = $6.360  \times 10^{4}$ + $8.340  \times 10^{-1}x_1$ + $2.147  \times 10^{1}x_2$ + $1.372  \times 10^{5}d$
+
+$Y$: sale price
+
+$x_1$: list price
+
+$x_2$: taxes
+
+$d$: location, where "T" = 1 and "M" = 0
+
+The results are consistent with the linear model observed in the full model. In the full model, although there are 7 predictors, only three p-values for the t-tests conducted for the coefficients are significant, which indicates that only three predictors are good predictors. 
+
+### Backward BIC
+
+```{r, echo=FALSE, include=FALSE}
+# backward BIC where n = 142
+bic_yc <- step(add_yc, direction = "backward", k=log(142))
+summary(bic_yc, digits = 4)
+```
+
+The final model obtained by using backward elimination with BIC:
+
+$Y$ = $6.360  \times 10^{4}$ + $8.340  \times 10^{-1}x_1$ + $2.147  \times 10^{1}x_2$ + $1.372  \times 10^{5}d$
+
+$Y$: sale price
+
+$x_1$: list price
+
+$x_2$: taxes
+
+$d$: location, where "T" = 1 and "M" = 0
+
+This model is identical to the one obtained from using AIC. Namely, only list price, taxes, and location are not redundant and are good predictors of sale price. As mentioned in the AIC section, the model obtained by AIC and BIC is consistent with the t-tests of the predictor of the full model, where only list price, taxes, and location are significant under a benchmark of 0.05. 
+
+## IV. Discussions and Limitations
+
+### Diagnostic Plots from Backward BIC Model
+```{r, echo=FALSE}
+# diagnostic for backward BIC
+par(mfrow=c(2,2))
+plot(bic_yc)
+```
+
+### Interpretation of the Diagnostic Plots
+
+#### Residuals vs. Fitted
+No distinct pattern is observed in the residual vs. fitted plot. The residuals are equally spread around the horizontal line (residuals = 0), which indicates that there is no non-linear relationship between the predictors and the outcome. . 
+
+#### Normal Q-Q 
+The majority of the points follow a straight line in general, with only a few points in the two tails deviating from the line. This indicates that the residuals are normally distributed.
+
+#### Scale-Location
+A horizontal line and randomly spread points are observed, which means that the residuals are spread equally along the range of predictors. It can be inferred that the plot follows the assumption of equal variance, which is also called homoscedasticity. 
+
+#### Residuals vs. Leverage
+There is no point at the upper and lower right corner and all points are within the dashed line. This indicates that no points have high Cook's distance score, and therefore there is no influential points to the regression line though there might be some outliers. In other words, outliers might exist but there existence did not change the regression line significantly. 
+
+#### Normal Error MLR Assumptions
+According to the diagnostic plots, the normal error MLR assumptions are all satisfied: 
+
+1. The error terms have mean zero: observed in the residual vs. fitted plot, where the horizontal line has intercept equals to zero.
+
+2. The error terms have constant variance: observed in the scale-location plot, where we observed a line that is roughly horizontal.
+
+3. The errors are uncorrelated: observed in the residual vs. fitted plot, where we observe a null plot with the residuals having no pattern. 
+
+4. Jointly Normal - the error terms follow a multivariate normal distribution: observed in the Normal QQ plot, where the majority of the points follow a straight line. 
+
+#### Next Steps
+The model obtained by BIC and AIC follows the MLR assumptions according to the diagnostic plots and it has no influential points. The next steps that I would take towards finding a valid 'final' model will be to check for the results of Global F-test and Individual t-tests to get a better sense of whether or not there really are some useful explanatory variables for predicting sales price and if there might be multicollinearity among the predictors. If the comparison of F and t-tests indicates that there might be multicollinearity, I will use the variance inflation factors to check the degree of multicollinearity and determine whether or not to fix it with any transformation methods.

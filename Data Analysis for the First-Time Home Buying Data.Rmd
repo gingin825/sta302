@@ -1,0 +1,161 @@
+ab---
+title: "Data Analysis for the First-Time Home Buying Data"
+author: "Y. C."
+date: "October 24, 2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r, message=FALSE, echo=FALSE}
+
+library(tidyverse)
+```
+
+
+```{r, echo=FALSE}
+# read the csv file 
+homebuying_yc <- read.csv("real20.csv")
+# Setting seed so the data won't be different each time I run the code
+set.seed(4380)
+# Randomly select a sample of 200 cases out of the original data
+sample_200_yc <- homebuying_yc[sample(230,200),]
+```
+
+## I. Exploratory Data Analysis
+
+### Scatterplot
+```{r, echo=FALSE}
+sold_yc <- sample_200_yc$sold
+list_yc <- sample_200_yc$list
+# plot the scatterplot to observe whether there is any outliers or influential points
+plot(list_yc, sold_yc, main="Scatterplot of Listed Prices and Sold Prices 4380", xlab="last list price (million CAD)", ylab= "actual sale price (million CAD)")
+
+abline(lm(sold_yc ~ list_yc), col = "blue")
+```
+
+```{r, echo=FALSE, include=FALSE}
+# compute cook's distance to double check if the outliers or influential points is a noteworthy point or not
+cooks_yc <- cooks.distance(lm(sold_yc ~ list_yc))
+sort(cooks_yc)
+```
+
+As you can see in the scatterplot, there are two outliers that influence the regression line. Without the two points, the slope estimate ($\beta_1$) of the regression will be a bit larger. After inspection, the two points have ID 59 (3.0000, 1.290) and 95 (6.7990, 0.672). Also, looking at the cook's distance for each point and sort it from biggest to smallest, the two points also stands out (have the biggest cook's distance, with ID 59: 6.345e-02, ID 95: 1.008e+01). According to both the scatterplot and the cook's distance, by removing the two outliers, we will be able to get a better regression line that fits the majority of the data.
+
+```{r, echo=FALSE}
+#remove 2 outliers (ID:59, 95)
+removed_data_yc <- sample_200_yc[-c(124, 158),]
+#remove the data missing the tax
+final_data_yc <- removed_data_yc[-c(24),]
+new_sold_yc <- final_data_yc$sold
+new_list_yc <- final_data_yc$list
+new_tax_yc <- final_data_yc$taxes
+```
+
+This is the scatterplot of the sample data with 200 cases drawn from the original data. It shows the relationship between listed price and sold price, with listed price being the independent variable and the sold price being the dependent variable. As the plot shows, the regression line is highly influenced by the two outliers: point (6.7990, 0.672) and (3.0000, 1.290). Other than the two outliers, the majority of the data are strongly positively correlated; higher listed price predicts higher sold price. 
+
+By removing the two outliers, we plot two scatterplots with the response variable being the sale price and the independent variable being the list price and the taxes. Properties in neighbourhood M (Mississauga) and in neighbourhood T (Toronto) is distinguished by different color (M: blue, T: red) and seperate simple regression models are fitted.
+
+### Adjusted Scatterplot
+```{r, echo=FALSE}
+# scatterplot of listed price vs. sold price
+plot(final_data_yc$list, final_data_yc$sold, main="Adjusted Scatterplot of Listed Prices and Sold Prices 4380", xlab="last list price (million CAD)", ylab= "actual sale price (million CAD)")
+
+# create 2 subset (neighbourhood M and T) and fit each to a seperate SLR
+setM_yc <- final_data_yc %>%
+  filter(location == 'M')
+lmodM_yc <- lm(setM_yc$sold~setM_yc$list)
+setT_yc <- final_data_yc %>%
+  filter(location == 'T')
+
+lmodT_yc <- lm(setT_yc$sold~setT_yc$list)
+
+# use different colored points to distinguish beyween properties in neighbourhood M and those in neighbourhood T, with M being blue and T being red
+points(setM_yc$list, setM_yc$sold,col="blue",pch=16)
+points(setT_yc$list, setT_yc$sold, col="red")
+lines(setM_yc$list, fitted(lmodM_yc), col="blue",lwd=2)
+lines(setT_yc$list, fitted(lmodT_yc), col="red", lwd=2)
+abline(lm(new_sold_yc ~ new_list_yc), col="green", lty="dashed")
+legend(1, 5, legend=c("Toronto", "Mississauga"),
+       col=c("red", "blue"), lty=1:1, cex=0.8)
+```
+
+In the second plot, relationship between listed price and sold price is depicted, with listed price being the independent variable and the sold price being the dependent variable. For the purpose of fitting a better regression line, two points that are considered outliers ((6.7990, 0.672) and (3.0000, 1.290)) are removed. After fitting a seperate simple linear regression model, it is shown in the plot that there is nearly no difference between properties in neighbourhood M and neighbourhood T; both SLR show a strong positive linear relationship and have similar regression lines. Also, the regression lines of the subsets (neighbourhood M and T) are similar to that of the whole data. 
+
+```{r, echo=FALSE}
+# scatterplot of taxes vs. sold price
+plot(new_tax_yc, new_sold_yc, main="Adjusted Scatterplot of Taxes and Sold Prices 4380", xlab="property tax (CAD)", ylab= "actual sale price (million CAD)")
+
+# fit the two subset (neighbourhood M and T) to two seperate SLR
+lmodM_tax_yc <- lm(setM_yc$sold~setM_yc$taxes, data=setM_yc)
+lmodT_tax_yc <- lm(setT_yc$sold~setT_yc$taxes, data=setT_yc)
+
+# use different colored points to distinguish beyween properties in neighbourhood M and those in neighbourhood T, with M being blue and T being red
+points(setM_yc$taxes, setM_yc$sold,col="blue",pch=16)
+points(setT_yc$taxes, setT_yc$sold, col="red")
+lines(setM_yc$taxes, fitted(lmodM_tax_yc), col="blue",lwd=2)
+lines(setT_yc$taxes, fitted(lmodT_tax_yc), col="red", lwd=2)
+abline(lm(new_sold_yc ~ new_tax_yc), col="green", lty="dashed")
+legend(1, 5, legend=c("Toronto", "Mississauga"),
+       col=c("red", "blue"), lty=1:1, cex=0.8)
+```
+
+The third scatterplot depicts the relationship between taxes and the sold price, with taxes being the independent variable and the sold price being the dependent variable. The data used in this plot is the same data used in the second plot. After fitting a seperate simple linear regression model to each neighbourhood, we can observe that both data have positive linear relationship and the slope estimate ($\beta_1$) of the two regression lines are the similar. However, for the same amount of property tax, the average of the sold price is higher in Toronto. 
+
+## II. Methods and Model
+
+```{r, echo=FALSE, include=FALSE}
+# three simple linear regression, one for all data, one for neighbourhood M, and one for neighbourhood T
+lmod_yc <- lm(final_data_yc$sold ~ final_data_yc$list)
+summary(lmod_yc)
+lmodM_yc <- lm(setM_yc$sold ~ setM_yc$list)
+summary(lmodM_yc)
+lmodT_yc <- lm(setT_yc$sold ~ setT_yc$list)
+summary(lmodT_yc)
+# calculate the 95% confidence interval for the slope parameter
+alpha=0.05
+# whole data
+qt(1-alpha/2, df=length(final_data_yc)-2)
+confint(lmod_yc, level=0.95)
+# neighourhood M
+qt(1-alpha/2, df=length(setM_yc)-2)
+confint(lmodM_yc, level=0.95)
+# neighbourhood T
+qt(1-alpha/2, df=length(setT_yc)-2)
+confint(lmodT_yc, level=0.95)
+```
+
+### Table
+
+```{r, echo=FALSE}
+# create a table with R-squared, estimated intercept, estimated slope, estimate of the variance of the error term, p-value for the test with null hypothesis that the slope is 0, 95% CI for the slope parameter for the three SLRs
+options(digits=4)
+r_squared_yc <- c(0.9830, 0.9860, 0.9820)
+intercept_yc <- c(0.1398, 0.1416, 0.1638)
+slope_yc <- c(0.9143, 0.8881, 0.9183)
+var_er_yc <- c(0.0159, 0.0104, 0.0177)
+p_yc <- c("0.0000", "0.0000", "0.0000")
+ci_yc <-c("(0.8972, 0.9314)", "(0.8655, 0.9107)", "(0.8941, 0.9425)")
+
+table_yc = cbind(r_squared_yc, intercept_yc, slope_yc, var_er_yc, p_yc, ci_yc)
+colnames(table_yc)=c("R-squared","Estimated Intercept","Estimated Slope", "Estimate of the Variance of the Error Term", "p-value", "95% CI for slope")
+rownames(table_yc) = c("M + T", "M", "T")
+table_yc
+```
+
+According to the R square values, 98.30% of the variation in the dependent variable (sold price) in the first SLR (neighbourhood M + T combined) is explained by the regression line, 98.60% of the variation in the dependent variable (sold price) in the second SLR (neighbourhood M) is explained by the regression line, and 98.20% of the variation in the dependent variable (sold price) in the third SLR (neighbourhood T) is explained by the regression line. The R square values of the three data are similar. Since most of the points in the scatterplot fit the regression line after two outliers have been removed for the three datasets and it is previously shown that the regression line and SLR for the three datasets are similar, they have similar R square values. Namely, most of the variance for the three datasets are explained by the regression line.
+
+Four conditions need to be met in order to apply the pool two sample t-test. The first and second is that both samples have to be normally distributed. Here, since the data size is big enough to assume normality, it is likely that both the subset of neighbourhood M and neighbourhood T follows the normal distribution. Third, the two samples have to be independent. This condition is met: the price in neighbourhood M is independent of the price in neighbourhood T; the house price in neighbourhood M will not influence the house price in neighbourhood T. Lastly, the two population need to have the same variance. Here, the variances of the two slope estimates need to be checked. Since the two SLR model is very similar, it is expected that the variance of the two slope estimates will be roughly the same. From the first to the forth condition, it is likely that every conditions are met. Therefore, a pooled two-sample t-test can be used here.
+
+## III. Discussions and Limitations
+
+According to the fitted models in part II along with the second scatterplot in part I, I would choose the first fitted model in part II. By observing the difference between the values of the three models depicted in the table in section II, we can see that there are little to no differences. Since the estimated slope and intercept are similar, the three datasets have similar regression lines.  Also, the second scatterplot in part I and the values in part II (variance of the error term) shows that it is neat to say that the difference is small enough to ignore and there is no need to have two seperate models for each neighbourhood. 
+
+```{r, echo=FALSE}
+par(mfrow=c(1,2))
+plot(lmod_yc, 2)
+plot(lmod_yc, 1)
+```
+
+According to the plot of the Normal QQ plot of the standardized residuals $r_i$, although there are some violations of normality in both tails, the majority of the residuals are normally distributed. Furthermore, the residual vs. fitted values plot gives a null plot. Namely, there is no pattern in the plot. Therefore, we can conclude homoscedasticity of the residuals. In sum, by checking the two plots, we can see that there are little to no violations of the normal error SLR assumptions for the selected model (neighbourhood M + T).
+
+Another two potential numeric predictors that could be used to fit a multiple linear regression for sale price are the distance from public transportation (ex. TTC) and the age of the house. As the distance from public transportation decreases, the price is predicted to increase, as this means less walking time to the public transportation. Also, as the age of the house increases, the house price is predicted to decrease.
